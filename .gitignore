@@ -1,0 +1,10 @@
+ckpt/*
+__pycache__/
+*~
+logs/*
+results/*
+
+.*.swp
+.*.swo
+*.log
+*.key
