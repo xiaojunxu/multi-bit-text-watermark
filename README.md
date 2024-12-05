@@ -1,10 +1,15 @@
 ## Robust Multi-bit Text Watermark
 
-Released code for the paper [Robust Multi-bit Text Watermark with LLM-based Paraphrasers](https://arxiv.org/pdf/TODO.pdf)
+Released code for the paper [Robust Multi-bit Text Watermark with LLM-based Paraphrasers](https://arxiv.org/pdf/2412.03123.pdf)
 
 Cite:
 ```latex
-TODO
+@article{xu2024robust,
+  title={Robust Multi-bit Text Watermark with LLM-based Paraphrasers},
+  author={Xu, Xiaojun and Jia, Jinghan and Yao, Yuanshun and Liu, Yang and Li, Hang},
+  journal={arXiv preprint arXiv:2412.03123},
+  year={2024}
+}
 ```
 
 ### Prerequisites
