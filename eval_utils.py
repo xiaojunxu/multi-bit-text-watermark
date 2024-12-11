@@ -28,7 +28,7 @@ def calc_tpr_at_fpr(all_labs, all_scores, percentile):
     pos_scores = all_scores[all_labs==1]
     return (pos_scores>thresh).mean()
 
-def ck_DM_generator_with_key(model0, model1, tokenizer, dataset, do_sample, device, batch_size, baseline_generator, wtm_by_token, wtm_every_K, max_length=128):
+def ck_DM_generator_with_key(model0, model1, tokenizer, dataset, do_sample, device, batch_size, max_length=128):
     assert tokenizer.padding_side == "left"
     prompt_dataset = []
     for line in dataset:
@@ -55,7 +55,7 @@ def ck_DM_generator_with_key(model0, model1, tokenizer, dataset, do_sample, devi
 
 
 
-def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test_dataset, do_sample, save_to=None, num_tests=100, max_length=160, bsize=4, wtm_by_token=False, wtm_every_K=10, paraphraser=None, sent_paraphraser=None, substitute_ratio=0.0, baseline_generator=None, single_model_mode=False):
+def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test_dataset, do_sample, save_to=None, num_tests=100, max_length=160, bsize=4):
     original_padding_side = tokenizer.padding_side
     tokenizer.padding_side = "left"
 
@@ -77,7 +77,7 @@ def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test
         actor_model1 = actor_model1.module
 
     with torch.no_grad():
-        for idx, (llm_gen, llm_inp, full_key) in enumerate(tqdm(ck_DM_generator_with_key(actor_model0, actor_model1, tokenizer, test_dataset[:num_tests], do_sample, actor_model0.device, batch_size=bsize, baseline_generator=baseline_generator, wtm_by_token=wtm_by_token, wtm_every_K=wtm_every_K, max_length=max_length))):
+        for idx, (llm_gen, llm_inp, full_key) in enumerate(tqdm(ck_DM_generator_with_key(actor_model0, actor_model1, tokenizer, test_dataset[:num_tests], do_sample, actor_model0.device, batch_size=bsize, max_length=max_length))):
             full_key = np.array(full_key)
             line = test_dataset[idx]
             prompt_inp = tokenizer(line['prompt'], return_tensors='pt', max_length=2048, truncation=True)
@@ -85,10 +85,7 @@ def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test
             prompt_length = prompt_inp['input_ids'].shape[1]
 
             cur_toks = human_inp['input_ids'][0][prompt_length:]
-            if single_model_mode:
-                split_point = np.array([])
-            else:
-                split_point = utils.gen_split_point(tokenizer, cur_toks)
+            split_point = utils.gen_split_point(tokenizer, cur_toks)
             new_toks_list = utils.split_toks(cur_toks, 0, split_point)
             cur_input_ids, cur_attention_mask = utils.process_token_list(tokenizer, new_toks_list, reward_model.device)
             pred = reward_model.forward_value(cur_input_ids, cur_attention_mask, prompt_length=1, return_value_only=False)["chosen_end_scores"]
@@ -101,19 +98,13 @@ def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test
             prompt_length = prompt_inp['input_ids'].shape[1]
             cur_toks = llm_inp['input_ids'][0][prompt_length:]
             # gen split point with alg
-            if single_model_mode:
-                split_point = np.array([])
-            else:
-                if wtm_by_token:
-                    split_point = torch.arange(0, len(cur_toks), wtm_every_K)[1:].to(cur_toks)
-                else:
-                    split_point = utils.gen_split_point(tokenizer, cur_toks)
+            split_point = utils.gen_split_point(tokenizer, cur_toks)
             new_toks_list = utils.split_toks(cur_toks, 0, split_point)
             new_toks_list = [l for l in new_toks_list if len(l) > 0]
-
             if len(new_toks_list) == 0:
                 print ("Empty in eval! SKIPPING")
                 continue
+            cur_input_ids, cur_attention_mask = utils.process_token_list(tokenizer, new_toks_list, reward_model.device)
             pred = reward_model.forward_value(cur_input_ids, cur_attention_mask, prompt_length=1, return_value_only=False)["chosen_end_scores"]
             cur_keys = full_key[:len(cur_input_ids)]
             llm_score = (pred[cur_keys==1].sum() - pred[cur_keys==0].sum()) / len(cur_keys)
