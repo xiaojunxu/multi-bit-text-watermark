@@ -12,6 +12,12 @@ Cite:
 }
 ```
 
+### Update 2025/07: Model checkpoints and Pipeline Demo
+We update the pipeline, release the model checkpoints for encoder and decoder and provide a demo script for applying the watermark pipeline. The demo can be run with
+```python
+python watermark_demo.py
+```
+
 ### Prerequisites
 * Tested on Python 3.11 with PyTorch 2.4.1 on one H100 card with 128GB memory.
 * Dependencies can be installed by `pip install -r requirements.txt`.

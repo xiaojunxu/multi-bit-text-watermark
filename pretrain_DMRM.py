@@ -49,8 +49,9 @@ def main(args) -> None:
         prompt_length = prompt_input_ids.shape[1]
         with torch.no_grad():
             full_key = list(np.random.randint(low=0, high=2, size=(100,)))
-            split_tokens = gen_utils.gen_split_tokens(tokenizer)
-            seq, split_info = gen_utils.DM_generate_with_key(model0, model1, key=full_key, split_tokens=split_tokens, input_ids=prompt_input_ids, attention_mask=prompt_attention_mask, max_length=max_length, pad_token_id=tokenizer.pad_token_id, do_sample=True)
+            #split_tokens = gen_utils.gen_split_tokens(tokenizer)
+            #seq, split_info = gen_utils.DM_generate_with_key(model0, model1, key=full_key, split_tokens=split_tokens, input_ids=prompt_input_ids, attention_mask=prompt_attention_mask, max_length=max_length, pad_token_id=tokenizer.pad_token_id, do_sample=True)
+            seq, split_info = gen_utils.DM_generate_with_key(model0, model1, tokenizer, key=full_key, input_ids=prompt_input_ids, attention_mask=prompt_attention_mask, max_length=max_length, pad_token_id=tokenizer.pad_token_id, do_sample=True)
         for sid in range(len(split_info)):
             for st, ed, key in split_info[sid][:-1]:
                 text = tokenizer.decode(seq[sid, st:ed], skip_special_tokens=True)

@@ -17,7 +17,7 @@ class RewardModel(nn.Module):
         if "OPT" in base_model.__class__.__name__ or "Gemma" in base_model.__class__.__name__:
             self.num_padding_at_beginning = 1
         else:
-            assert "Llama" in base_model.__class__.__name__ or "llama" in base_model.__class__.__name__
+            assert "Llama" in base_model.__class__.__name__ or "llama" in base_model.__class__.__name__ or "Qwen" in base_model.__class__.__name__ or "qwen" in base_model.__class__.__name__
             self.num_padding_at_beginning = 0
 
     @property

@@ -45,9 +45,8 @@ def ck_DM_generator_with_key(model0, model1, tokenizer, dataset, do_sample, devi
         max_min_length = prompt_length + max_length
 
         full_key = [1,0,1,0,1,0,1,0]*20
-        split_tokens = gen_utils.gen_split_tokens(tokenizer)
         with torch.no_grad():
-            seq, _ = gen_utils.DM_generate_with_key(model0, model1, key=full_key, split_tokens=split_tokens, input_ids=prompt_input_ids, attention_mask=prompt_attention_mask, max_length=max_min_length, pad_token_id=tokenizer.pad_token_id, do_sample=do_sample)
+            seq, _ = gen_utils.DM_generate_with_key(model0, model1, tokenizer, key=full_key, input_ids=prompt_input_ids, attention_mask=prompt_attention_mask, max_length=max_min_length, pad_token_id=tokenizer.pad_token_id, do_sample=do_sample)
         for one_seq in seq:
             nonzero_ids = (one_seq!=tokenizer.pad_token_id).nonzero()
             st, ed = nonzero_ids[0], nonzero_ids[-1]+1
@@ -85,8 +84,14 @@ def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test
             prompt_length = prompt_inp['input_ids'].shape[1]
 
             cur_toks = human_inp['input_ids'][0][prompt_length:]
-            split_point = utils.gen_split_point(tokenizer, cur_toks)
-            new_toks_list = utils.split_toks(cur_toks, 0, split_point)
+            #split_point = utils.gen_split_point(tokenizer, cur_toks)
+            #new_toks_list = utils.split_toks(cur_toks, 0, split_point)
+            split_sentences = gen_utils.split_sentence(tokenizer.decode(cur_toks))
+            new_toks_list = []
+            prev_sent = ''
+            for one_sent in split_sentences:
+                cur_sent = one_sent
+                new_toks_list.append(tokenizer(cur_sent, return_tensors='pt')['input_ids'][0,reward_model.num_padding_at_beginning:])
             cur_input_ids, cur_attention_mask = utils.process_token_list(tokenizer, new_toks_list, reward_model.device)
             pred = reward_model.forward_value(cur_input_ids, cur_attention_mask, prompt_length=1, return_value_only=False)["chosen_end_scores"]
             cur_keys = full_key[:len(cur_input_ids)]
@@ -98,8 +103,14 @@ def evaluate_detection(actor_model0, actor_model1, reward_model, tokenizer, test
             prompt_length = prompt_inp['input_ids'].shape[1]
             cur_toks = llm_inp['input_ids'][0][prompt_length:]
             # gen split point with alg
-            split_point = utils.gen_split_point(tokenizer, cur_toks)
-            new_toks_list = utils.split_toks(cur_toks, 0, split_point)
+            #split_point = utils.gen_split_point(tokenizer, cur_toks)
+            #new_toks_list = utils.split_toks(cur_toks, 0, split_point)
+            split_sentences = gen_utils.split_sentence(tokenizer.decode(cur_toks))
+            new_toks_list = []
+            prev_sent = ''
+            for one_sent in split_sentences:
+                cur_sent = one_sent
+                new_toks_list.append(tokenizer(cur_sent, return_tensors='pt')['input_ids'][0,reward_model.num_padding_at_beginning:])
             new_toks_list = [l for l in new_toks_list if len(l) > 0]
             if len(new_toks_list) == 0:
                 print ("Empty in eval! SKIPPING")

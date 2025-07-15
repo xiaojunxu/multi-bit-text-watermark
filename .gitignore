@@ -1,4 +1,5 @@
 ckpt/*
+!ckpt/WatermarkDecoder-v_head.pt
 __pycache__/
 *~
 logs/*

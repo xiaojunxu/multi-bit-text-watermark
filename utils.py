@@ -11,7 +11,7 @@ from transformers import AutoConfig, AutoTokenizer, AutoModel, AutoModelForCausa
 import gen_utils
 
 def get_model(model_name, model_class=AutoModel, model_path=None, dropout=0.0, new_vocab_size=None, bf16=True, **kwargs):
-    if "llama" in model_name or "gemma" in model_name:
+    if "llama" in model_name or "gemma" in model_name or "qwen" in model_name:
         if model_path is None:
             if model_name == "llama2-7b":
                 model_path = "meta-llama/Llama-2-7b-hf"
@@ -33,6 +33,18 @@ def get_model(model_name, model_class=AutoModel, model_path=None, dropout=0.0, n
                 model_path = "google/gemma-2-9b"
             elif model_name == 'gemma2-9b-it':
                 model_path = "google/gemma-2-9b-it"
+            elif model_name == 'qwen2.5-1.5b-it':
+                model_path = "Qwen/Qwen2.5-1.5B-Instruct"
+            elif model_name == 'qwen2.5-3b-it':
+                model_path = "Qwen/Qwen2.5-3B-Instruct"
+            elif model_name == 'qwen2.5-7b-it':
+                model_path = "Qwen/Qwen2.5-7B-Instruct"
+            elif model_name == 'qwen2.5-1.5b':
+                model_path = "Qwen/Qwen2.5-1.5B"
+            elif model_name == 'qwen2.5-3b':
+                model_path = "Qwen/Qwen2.5-3B"
+            elif model_name == 'qwen2.5-7b':
+                model_path = "Qwen/Qwen2.5-7B"
             else:
                 raise NotImplementedError()
         model_config = AutoConfig.from_pretrained(model_path)
@@ -54,7 +66,7 @@ def get_model(model_name, model_class=AutoModel, model_path=None, dropout=0.0, n
     return model
 
 def get_tokenizer(model_name):
-    if "llama" in model_name or "gemma" in model_name:
+    if "llama" in model_name or "gemma" in model_name or "qwen" in model_name:
         #model_path = "meta-llama/Llama-2-7b-hf"   # unified tokenizer for llama #TODO: use if we do sft for models
         if model_name == "llama2-7b":
             model_path = "meta-llama/Llama-2-7b-hf"
@@ -76,18 +88,44 @@ def get_tokenizer(model_name):
             model_path = "google/gemma-2-9b"
         elif model_name == 'gemma2-9b-it':
             model_path = "google/gemma-2-9b-it"
+        elif model_name == 'qwen2.5-1.5b-it':
+            model_path = "Qwen/Qwen2.5-1.5B-Instruct"
+        elif model_name == 'qwen2.5-3b-it':
+            model_path = "Qwen/Qwen2.5-3B-Instruct"
+        elif model_name == 'qwen2.5-7b-it':
+            model_path = "Qwen/Qwen2.5-7B-Instruct"
+        elif model_name == 'qwen2.5-1.5b':
+            model_path = "Qwen/Qwen2.5-1.5B"
+        elif model_name == 'qwen2.5-3b':
+            model_path = "Qwen/Qwen2.5-3B"
+        elif model_name == 'qwen2.5-7b':
+            model_path = "Qwen/Qwen2.5-7B"
         else:
             raise NotImplementedError()
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.padding_side = 'right'
+        if 'gemma' in model_name:
+            tokenizer.end_of_turn_token = 107
+            assert tokenizer.decode([tokenizer.end_of_turn_token]) == '<end_of_turn>'
+        else:
+            tokenizer.end_of_turn_token = None
     else:
         raise NotImplementedError()
     return tokenizer
 
+QWEN_PROMPT = 'Paraphrase the user provided text with lexical or structural changes, while keeping the exact semantic meaning of the original text. Keep in mind that you should keep the exact meaning of the original text. For example, you should not use synonyms that has slightly different meaning with the original meaning or change the proper nouns in the text. Make sure that the output text is still fluent. Use the same language as the original one. Do not include any other content after the substituted text.'
+QWEN_SUFFIX = 'Here is the paraphrased version of the text which preserves the exact semantic meaning:'
 def gen_para_prompt(text, prompt_style='custom', tokenizer=None):
     if prompt_style == "custom":
         return "Human: Paraphrase the text below.\n%s\nAssistant: Paraphrased text:"%text
+    elif prompt_style == "qwen":
+        message = [
+            {"role": "system", "content": "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."},
+            {"role":"user", "content":QWEN_PROMPT+"\n\n"+text}
+        ]
+        prompt = tokenizer.apply_chat_template(message, tokenize=False, add_generation_prompt=True) + f"\n{QWEN_SUFFIX}\n"
+        return prompt
     else:
         raise NotImplementedError()
 
@@ -522,3 +560,30 @@ def train_rlhf_withsim_DM(actor_model0, actor_model1, critic_model, exp_data, kl
 
     return actor_loss0, actor_loss1, critic_loss, actor_prob0, actor_prob1
 
+def get_longest_common_subsequence(words1, words2, i, j):
+    # dp version
+    lcs_dp = np.zeros((len(words1)+1, len(words2)+1))
+    for i in range(len(words1)):
+        for j in range(len(words2)):
+            lcs_dp[i,j] = max(lcs_dp[i,j-1], lcs_dp[i-1,j]) # if i or j is 0, then ret will be zero
+            if words1[i] == words2[j]:
+                lcs_dp[i,j] = max(lcs_dp[i,j], lcs_dp[i-1,j-1]+1)
+    max_lcs_len = lcs_dp.max().item()
+    return max_lcs_len
+def calc_rogue_lcs_score(tokenizer, target_texts, predicted_texts):
+    all_f1 = []
+    for predicted_text, target_text in zip(predicted_texts, target_texts):
+        #predicted_words, target_words = predicted_text.split(), target_text.split()
+        predicted_words = tokenizer(predicted_text)['input_ids'] # be default, the first tok is <bos>, so lcs must be >= 1
+        target_words = tokenizer(target_text)['input_ids']
+        num_predicted_words = len(predicted_words)
+        num_target_words = len(target_words)
+        len_lcs = get_longest_common_subsequence(predicted_words, target_words, 0, 0)
+        if len_lcs == 0:
+            f1 = 0
+        else:
+            precision = len_lcs/num_predicted_words
+            recall = len_lcs/num_target_words
+            f1 = 2*precision*recall/(precision + recall)
+        all_f1.append(f1)
+    return torch.FloatTensor(all_f1)
